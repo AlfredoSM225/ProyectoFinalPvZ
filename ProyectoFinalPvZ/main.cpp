@@ -64,6 +64,8 @@ std::string nombrePlanta(uint32_t id) {
     }
 }
 
+//FALTAN NIVELES Y VISUAL
+
 int main() {
 
     InicializarJuego();
