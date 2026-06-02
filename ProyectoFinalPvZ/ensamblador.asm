@@ -22,6 +22,7 @@ PUBLIC hordaFinalActiva
 PUBLIC nivelTerminado
 PUBLIC ConfigurarNivel
 PUBLIC ActualizarNivel
+PUBLIC juegoTerminado
 
 PUBLIC soles
 PUBLIC defensa
@@ -763,6 +764,7 @@ ActualizarJuego_Lento:
 
 ActualizarJuego_EliminarZombie:
 
+    MOV DWORD PTR juegoTerminado, 1
     CALL LimpiarEntidad
 
 ActualizarJuego_SiguienteZombie:
@@ -1108,6 +1110,8 @@ ConfigurarNivel PROC USES EAX, nivel:DWORD
 
     MOV EAX, nivel
     MOV DWORD PTR nivelActual, EAX
+
+    MOV DWORD PTR juegoTerminado, 0
 
     MOV DWORD PTR contadorSpawn, 0
     MOV DWORD PTR hordaFinalActiva, 0

@@ -39,6 +39,7 @@ extern "C" {
     extern uint32_t contadorSpawn;
     extern uint32_t hordaFinalActiva;
     extern uint32_t nivelTerminado;
+    extern uint32_t juegoTerminado;
 }
 
 struct Nivel {
@@ -325,6 +326,13 @@ int main() {
     textoHorda.setFillColor(sf::Color::Red);
     textoHorda.setPosition(300.f, 8.f);
 
+    sf::Text textoGameOver;
+    textoGameOver.setFont(fuente);
+    textoGameOver.setCharacterSize(42);
+    textoGameOver.setFillColor(sf::Color::Red);
+    textoGameOver.setString("GAME OVER");
+    textoGameOver.setPosition(280.f, 250.f);
+
     sf::Text simboloColgado;
     simboloColgado.setFont(fuente);
     simboloColgado.setCharacterSize(28);
@@ -461,19 +469,35 @@ int main() {
             }
         }
 
-        if (nivelTerminado == 0) {
+        if (nivelTerminado == 0 && juegoTerminado == 0) {
             ActualizarJuego();
             ActualizarNivel();
             contadorCambioNivel = 0;
         }
         else {
-            if (modoPrueba == 0) {
-                contadorCambioNivel++;
+
+            contadorCambioNivel++;
+
+            if (juegoTerminado != 0) {
 
                 if (contadorCambioNivel >= 180) {
+
+                    contadorCambioNivel = 0;
+
+                    ConfigurarNivel(nivelActual);
+                    nivelEnJuego = niveles[nivelActual];
+                    plantaSeleccionada = 2;
+                }
+            }
+
+            else if (modoPrueba == 0) {
+
+                if (contadorCambioNivel >= 180) {
+
                     contadorCambioNivel = 0;
 
                     if (nivelActual < 4) {
+
                         ConfigurarNivel(nivelActual + 1);
                         nivelEnJuego = niveles[nivelActual];
                         plantaSeleccionada = 2;
@@ -649,6 +673,10 @@ int main() {
         ventana.draw(textoAyuda);
         ventana.draw(textoNivel);
         ventana.draw(textoHorda);
+
+        if (juegoTerminado != 0) {
+            ventana.draw(textoGameOver);
+        }
 
         ventana.display();
     }
