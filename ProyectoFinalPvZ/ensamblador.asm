@@ -40,6 +40,8 @@ ID_ZOMBIE_PERIODICO EQU 8
 ID_ZOMBIE_JACK      EQU 9
 ID_ZOMBIE_COLGADO   EQU 10
 
+ID_PALA             EQU 99
+
 ID_GUISANTE         EQU 20
 
 ESTADO_INACTIVO     EQU 0
@@ -222,6 +224,9 @@ IntentarColocarPlanta PROC USES EAX EBX ESI, fila:DWORD, columna:DWORD, tipo:DWO
 
     MOV EAX, tipo
 
+    CMP EAX, ID_PALA
+    JE UsarPala
+
     CMP EAX, ID_GIRASOL
     JE IntentarPlanta_CostoGirasol
 
@@ -237,6 +242,27 @@ IntentarColocarPlanta PROC USES EAX EBX ESI, fila:DWORD, columna:DWORD, tipo:DWO
     CMP EAX, ID_CEREZA
     JE IntentarPlanta_CostoCereza
 
+    JMP IntentarPlanta_Fin
+
+UsarPala:
+    MOV EAX, fila
+    MOV EBX, 9
+    MUL EBX
+    ADD EAX, columna
+
+    MOV EBX, TYPE Entidad
+    MUL EBX
+
+    LEA ESI, defensa
+    ADD ESI, EAX
+
+    CMP BYTE PTR [ESI].Entidad.ID, ID_GIRASOL
+    JB IntentarPlanta_Fin
+
+    CMP BYTE PTR [ESI].Entidad.ID, ID_CEREZA
+    JA IntentarPlanta_Fin
+
+    CALL LimpiarEntidad
     JMP IntentarPlanta_Fin
 
 IntentarPlanta_CostoGirasol:

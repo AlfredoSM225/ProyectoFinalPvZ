@@ -71,6 +71,8 @@ static const float PLANTA_TAM = 80.f;   // tamaño target del sprite en campo
 static const float SEED_TAM = 42.f;   // tamaño target de seed en barra
 static const float GUISANTE_TAM = 26.f; // tamaño del proyectil
 
+static const uint32_t ID_PALA = 99;
+
 // Centro X/Y de una celda (col, fila) en coordenadas de pantalla
 static inline float celdaCX(int col) { return col * CELDA_W + CELDA_W * 0.5f; }
 static inline float celdaCY(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.5f; }
@@ -145,6 +147,7 @@ struct GestorTexturas {
             }
             t.setSmooth(true);
             };
+
         // Campo
         tryLoad(girasol, "Sprites/Plantas/Girasol.png");
         tryLoad(lnzGst, "Sprites/Plantas/LnzGst.png");
@@ -259,6 +262,7 @@ std::string nombrePlanta(uint32_t id) {
     case 3: return "Nuez";
     case 4: return "Carnivora";
     case 5: return "Cereza";
+    case 99: return "Pala";
     default: return "Desconocida";
     }
 }
@@ -276,6 +280,7 @@ int main() {
     Nivel nivelEnJuego = niveles[0];
 
     uint32_t plantaSeleccionada = 2;
+    int contadorCambioNivel = 0;
 
     GestorTexturas tex;
     tex.cargar();
@@ -430,11 +435,16 @@ int main() {
                 if (my >= 0 && my < (int)BARRA_H) {
                     int op = mx / (int)CELDA_W;
 
-                    if (op >= 0 && op < 5) {
-                        uint32_t posiblePlanta = (uint32_t)(op + 1);
+                    if (op >= 0 && op < 6) {
+                        if (op == 5) {
+                            plantaSeleccionada = ID_PALA;
+                        }
+                        else {
+                            uint32_t posiblePlanta = (uint32_t)(op + 1);
 
-                        if (modoPrueba != 0 || PlantaDisponible(nivelEnJuego, posiblePlanta)) {
-                            plantaSeleccionada = posiblePlanta;
+                            if (modoPrueba != 0 || PlantaDisponible(nivelEnJuego, posiblePlanta)) {
+                                plantaSeleccionada = posiblePlanta;
+                            }
                         }
                     }
                 }
@@ -443,7 +453,7 @@ int main() {
                     uint32_t columna = (uint32_t)(mx / (int)CELDA_W);
 
                     if (fila < 5 && columna < 9) {
-                        if (modoPrueba != 0 || PlantaDisponible(nivelEnJuego, plantaSeleccionada)) {
+                        if (modoPrueba != 0 || plantaSeleccionada == ID_PALA || PlantaDisponible(nivelEnJuego, plantaSeleccionada)) {
                             IntentarColocarPlanta(fila, columna, plantaSeleccionada);
                         }
                     }
@@ -454,6 +464,22 @@ int main() {
         if (nivelTerminado == 0) {
             ActualizarJuego();
             ActualizarNivel();
+            contadorCambioNivel = 0;
+        }
+        else {
+            if (modoPrueba == 0) {
+                contadorCambioNivel++;
+
+                if (contadorCambioNivel >= 180) {
+                    contadorCambioNivel = 0;
+
+                    if (nivelActual < 4) {
+                        ConfigurarNivel(nivelActual + 1);
+                        nivelEnJuego = niveles[nivelActual];
+                        plantaSeleccionada = 2;
+                    }
+                }
+            }
         }
 
         textoSoles.setString("Soles: " + std::to_string(soles));
@@ -471,7 +497,12 @@ int main() {
             textoHorda.setString("HORDA FINAL");
         }
         else if (nivelTerminado != 0) {
-            textoHorda.setString("NIVEL COMPLETADO");
+            if (modoPrueba == 0 && nivelActual == 4) {
+                textoHorda.setString("JUEGO COMPLETADO");
+            }
+            else {
+                textoHorda.setString("NIVEL COMPLETADO");
+            }
         }
         else {
             textoHorda.setString("");
@@ -500,9 +531,9 @@ int main() {
         // ── Barra de seeds ──────────────────────────────────────
         ventana.draw(panelBarra);
 
-        for (int i = 0; i < 5; i++) {
-            uint32_t idSeed = (uint32_t)(i + 1);
-            bool disponible = (modoPrueba != 0) || PlantaDisponible(nivelEnJuego, idSeed);
+        for (int i = 0; i < 6; i++) {
+            uint32_t idSeed = (i == 5) ? ID_PALA : (uint32_t)(i + 1);
+            bool disponible = (idSeed == ID_PALA) ? true : ((modoPrueba != 0) || PlantaDisponible(nivelEnJuego, idSeed));
 
             float cx = i * CELDA_W + CELDA_W * 0.5f;
             float cy = BARRA_H * 0.5f;
@@ -528,20 +559,31 @@ int main() {
 
             ventana.draw(celdaSeed);
 
-            // Sprite seed centrado en celda
-            sprPlanta.setTexture(tex.texturaSeed(idSeed));
-            escalarPorMayor(sprPlanta, SEED_TAM);
-            centrarOrigen(sprPlanta);
-            sprPlanta.setPosition(cx, cy);
-
-            if (disponible) {
-                sprPlanta.setColor(sf::Color::White);
+            if (idSeed == ID_PALA) {
+                sf::Text textoPala;
+                textoPala.setFont(fuente);
+                textoPala.setCharacterSize(18);
+                textoPala.setFillColor(sf::Color::White);
+                textoPala.setString("Pala");
+                textoPala.setPosition(i * CELDA_W + 18.f, 15.f);
+                ventana.draw(textoPala);
             }
             else {
-                sprPlanta.setColor(sf::Color(80, 80, 80, 180));
-            }
+                // Sprite seed centrado en celda
+                sprPlanta.setTexture(tex.texturaSeed(idSeed));
+                escalarPorMayor(sprPlanta, SEED_TAM);
+                centrarOrigen(sprPlanta);
+                sprPlanta.setPosition(cx, cy);
 
-            ventana.draw(sprPlanta);
+                if (disponible) {
+                    sprPlanta.setColor(sf::Color::White);
+                }
+                else {
+                    sprPlanta.setColor(sf::Color(80, 80, 80, 180));
+                }
+
+                ventana.draw(sprPlanta);
+            }
         }
 
         // ── Plantas en campo ────────────────────────────────────
