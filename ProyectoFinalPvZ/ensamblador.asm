@@ -15,6 +15,13 @@ PUBLIC AplicarCereza
 PUBLIC IntentarColocarLanzaguisantes
 PUBLIC IntentarColocarPlanta
 PUBLIC ActualizarEconomia
+PUBLIC modoPrueba
+PUBLIC nivelActual
+PUBLIC contadorSpawn
+PUBLIC hordaFinalActiva
+PUBLIC nivelTerminado
+PUBLIC ConfigurarNivel
+PUBLIC ActualizarNivel
 
 PUBLIC soles
 PUBLIC defensa
@@ -61,6 +68,24 @@ Entidad ENDS
     defensa  Entidad 45 DUP (<>)
     horda    Entidad 30 DUP (<>)
     disparos Entidad 50 DUP (<>)
+
+    modoPrueba        DWORD 1
+    nivelActual       DWORD 0
+    contadorSpawn     DWORD 0
+    hordaFinalActiva  DWORD 0
+    nivelTerminado    DWORD 0
+
+    zClasico          DWORD 0
+    zCono             DWORD 0
+    zPeriodico        DWORD 0
+    zJack             DWORD 0
+    zColgado          DWORD 0
+
+    hClasico          DWORD 0
+    hCono             DWORD 0
+    hPeriodico        DWORD 0
+    hJack             DWORD 0
+    hColgado          DWORD 0
 
 .CODE
 
@@ -402,44 +427,78 @@ AparecerZombieColgado PROC USES ESI EDI EAX EBX ECX EDX
 
     INC DWORD PTR contadorOleada
 
-    MOV EAX, contadorOleada
-    XOR EDX, EDX
-    MOV EBX, 45
-    DIV EBX
-
-    MOV EAX, EDX
-    MOV EBX, TYPE Entidad
-    MUL EBX
-
+    ; contar plantas ocupadas
     LEA ESI, defensa
-    ADD ESI, EAX
-
     MOV ECX, 45
+    XOR EDX, EDX
 
-BuscarPlantaColgado:
-
+ContarPlantasColgado:
     CMP BYTE PTR [ESI].Entidad.ID, ID_GIRASOL
-    JB SiguienteCasillaColgado
+    JB NoContarColgado
 
     CMP BYTE PTR [ESI].Entidad.ID, ID_CEREZA
-    JA SiguienteCasillaColgado
+    JA NoContarColgado
 
+    INC EDX
+
+NoContarColgado:
+    ADD ESI, TYPE Entidad
+    DEC ECX
+    JNZ ContarPlantasColgado
+
+    CMP EDX, 0
+    JE FinColgado
+
+    ; indice pseudo-aleatorio = (contadorOleada + contadorSoles) % cantidadPlantas
+    MOV EAX, contadorOleada
+    ADD EAX, contadorSoles
+    MOV EBX, EDX
+    XOR EDX, EDX
+    DIV EBX
+
+    ; EDX = planta elegida
+    MOV EBX, EDX
+
+    ; buscar la planta elegida
+    LEA ESI, defensa
+    MOV ECX, 45
+
+BuscarPlantaAleatoriaColgado:
+    CMP BYTE PTR [ESI].Entidad.ID, ID_GIRASOL
+    JB SiguientePlantaAleatoria
+
+    CMP BYTE PTR [ESI].Entidad.ID, ID_CEREZA
+    JA SiguientePlantaAleatoria
+
+    CMP EBX, 0
+    JE PlantaElegidaColgado
+
+    DEC EBX
+
+SiguientePlantaAleatoria:
+    ADD ESI, TYPE Entidad
+    DEC ECX
+    JNZ BuscarPlantaAleatoriaColgado
+
+    JMP FinColgado
+
+PlantaElegidaColgado:
     LEA EDI, horda
-    MOV EDX, 30
+    MOV ECX, 30
 
 BuscarEspacioColgado:
     CMP BYTE PTR [EDI].Entidad.ID, 0
     JE CrearColgadoTemporal
 
     ADD EDI, TYPE Entidad
-    DEC EDX
+    DEC ECX
     JNZ BuscarEspacioColgado
 
-    RET
+    JMP FinColgado
 
 CrearColgadoTemporal:
     MOV BYTE PTR [EDI].Entidad.ID, ID_ZOMBIE_COLGADO
-    MOV BYTE PTR [EDI].Entidad.Vida, 1
+    MOV BYTE PTR [EDI].Entidad.Vida, 10
     MOV BYTE PTR [EDI].Entidad.Dano, 0
     MOV BYTE PTR [EDI].Entidad.Estado, ESTADO_ATACANDO
 
@@ -451,20 +510,7 @@ CrearColgadoTemporal:
 
     MOV DWORD PTR [EDI].Entidad.Reloj, 0
 
-    RET
-
-SiguienteCasillaColgado:
-    ADD ESI, TYPE Entidad
-
-    CMP ESI, OFFSET defensa + (45 * TYPE Entidad)
-    JB ContinuarBusquedaColgado
-
-    LEA ESI, defensa
-
-ContinuarBusquedaColgado:
-    DEC ECX
-    JNZ BuscarPlantaColgado
-
+FinColgado:
     RET
 
 AparecerZombieColgado ENDP
@@ -499,15 +545,9 @@ BuscarPlantaDebajo:
     CMP AL, BYTE PTR [EDI].Entidad.FilaY
     JNE SiguientePlantaDebajo
 
-    MOV AX, WORD PTR [EDI].Entidad.PosX
-    ADD AX, 45
-    CMP WORD PTR [ESI].Entidad.PosX, AX
-    JA SiguientePlantaDebajo
-
-    MOV AX, WORD PTR [EDI].Entidad.PosX
-    SUB AX, 45
-    CMP WORD PTR [ESI].Entidad.PosX, AX
-    JB SiguientePlantaDebajo
+    MOV AX, WORD PTR [ESI].Entidad.PosX
+    CMP AX, WORD PTR [EDI].Entidad.PosX
+    JNE SiguientePlantaDebajo
 
     PUSH ESI
     MOV ESI, EDI
@@ -667,13 +707,27 @@ ActualizarJuego_Movimiento:
 
 ActualizarJuego_Rapido:
 
-    CMP WORD PTR [ESI].Entidad.PosX, 2
+    INC DWORD PTR [ESI].Entidad.Reloj
+
+    CMP DWORD PTR [ESI].Entidad.Reloj, 1
+    JB ActualizarJuego_SiguienteZombie
+
+    MOV DWORD PTR [ESI].Entidad.Reloj, 0
+
+    CMP WORD PTR [ESI].Entidad.PosX, 1
     JBE ActualizarJuego_EliminarZombie
 
-    SUB WORD PTR [ESI].Entidad.PosX, 2
+    SUB WORD PTR [ESI].Entidad.PosX, 1
     JMP ActualizarJuego_SiguienteZombie
 
 ActualizarJuego_Lento:
+
+    INC DWORD PTR [ESI].Entidad.Reloj
+
+    CMP DWORD PTR [ESI].Entidad.Reloj, 2
+    JB ActualizarJuego_SiguienteZombie
+
+    MOV DWORD PTR [ESI].Entidad.Reloj, 0
 
     CMP WORD PTR [ESI].Entidad.PosX, 1
     JBE ActualizarJuego_EliminarZombie
@@ -783,6 +837,9 @@ ActualizarDisparos_BuscarZombie:
 
     CMP BYTE PTR [EDI].Entidad.ID, ID_ZOMBIE_COLGADO
     JA ActualizarDisparos_SiguienteZombie
+
+    CMP BYTE PTR [EDI].Entidad.ID, ID_ZOMBIE_COLGADO
+    JE ActualizarDisparos_SiguienteZombie
 
     MOV AL, BYTE PTR [ESI].Entidad.FilaY
     CMP AL, BYTE PTR [EDI].Entidad.FilaY
@@ -907,13 +964,23 @@ AplicarInstakill PROC USES ESI EDI ECX EDX EAX
     MOV ECX, 45
 
 Instakill_BuscarCarnivora:
+
     CMP BYTE PTR [ESI].Entidad.ID, ID_CARNIVORA
     JNE Instakill_SiguienteCarnivora
+
+    CMP DWORD PTR [ESI].Entidad.Reloj, 0
+    JE Carnivora_Lista
+
+    DEC DWORD PTR [ESI].Entidad.Reloj
+    JMP Instakill_SiguienteCarnivora
+
+Carnivora_Lista:
 
     LEA EDI, horda
     MOV EDX, 30
 
 Instakill_ZombieParaCarnivora:
+
     CMP BYTE PTR [EDI].Entidad.ID, ID_ZOMBIE_CLASICO
     JB Instakill_SiguienteZombieCarnivora
 
@@ -940,6 +1007,7 @@ Instakill_ZombieParaCarnivora:
     POP ESI
 
     MOV DWORD PTR [ESI].Entidad.Reloj, 180
+
     JMP Instakill_SiguienteCarnivora
 
 Instakill_SiguienteZombieCarnivora:
@@ -956,6 +1024,7 @@ Instakill_SiguienteCarnivora:
     MOV ECX, 30
 
 Instakill_BuscarJack:
+
     CMP BYTE PTR [ESI].Entidad.ID, ID_ZOMBIE_JACK
     JNE Instakill_SiguienteJack
 
@@ -963,6 +1032,7 @@ Instakill_BuscarJack:
     MOV EDX, 45
 
 Instakill_PlantaParaJack:
+
     CMP BYTE PTR [EDI].Entidad.ID, ID_GIRASOL
     JB Instakill_SiguientePlantaJack
 
@@ -989,6 +1059,7 @@ Instakill_PlantaParaJack:
     POP ESI
 
     CALL LimpiarEntidad
+
     JMP Instakill_SiguienteJack
 
 Instakill_SiguientePlantaJack:
@@ -1002,6 +1073,390 @@ Instakill_SiguienteJack:
     JNZ Instakill_BuscarJack
 
     RET
+
 AplicarInstakill ENDP
+
+ConfigurarNivel PROC USES EAX, nivel:DWORD
+
+    CALL InicializarJuego
+
+    MOV EAX, nivel
+    MOV DWORD PTR nivelActual, EAX
+
+    MOV DWORD PTR contadorSpawn, 0
+    MOV DWORD PTR hordaFinalActiva, 0
+    MOV DWORD PTR nivelTerminado, 0
+
+    MOV DWORD PTR zClasico, 0
+    MOV DWORD PTR zCono, 0
+    MOV DWORD PTR zPeriodico, 0
+    MOV DWORD PTR zJack, 0
+    MOV DWORD PTR zColgado, 0
+
+    MOV DWORD PTR hClasico, 0
+    MOV DWORD PTR hCono, 0
+    MOV DWORD PTR hPeriodico, 0
+    MOV DWORD PTR hJack, 0
+    MOV DWORD PTR hColgado, 0
+
+    CMP EAX, 99
+    JE Nivel_Prueba
+
+    MOV DWORD PTR modoPrueba, 0
+    MOV DWORD PTR soles, 0
+
+    CMP EAX, 0
+    JE Nivel_1
+    CMP EAX, 1
+    JE Nivel_2
+    CMP EAX, 2
+    JE Nivel_3
+    CMP EAX, 3
+    JE Nivel_4
+    CMP EAX, 4
+    JE Nivel_5
+
+    JMP ConfigurarNivel_Fin
+
+Nivel_Prueba:
+    MOV DWORD PTR modoPrueba, 1
+    MOV DWORD PTR soles, 9999
+    JMP ConfigurarNivel_Fin
+
+Nivel_1:
+    MOV DWORD PTR zClasico, 12
+    MOV DWORD PTR hClasico, 5
+    JMP ConfigurarNivel_Fin
+
+Nivel_2:
+    MOV DWORD PTR zClasico, 14
+    MOV DWORD PTR zCono, 6
+    MOV DWORD PTR hClasico, 4
+    MOV DWORD PTR hCono, 3
+    JMP ConfigurarNivel_Fin
+
+Nivel_3:
+    MOV DWORD PTR zClasico, 12
+    MOV DWORD PTR zCono, 8
+    MOV DWORD PTR zPeriodico, 6
+    MOV DWORD PTR hClasico, 3
+    MOV DWORD PTR hCono, 4
+    MOV DWORD PTR hPeriodico, 4
+    JMP ConfigurarNivel_Fin
+
+Nivel_4:
+    MOV DWORD PTR zClasico, 10
+    MOV DWORD PTR zCono, 8
+    MOV DWORD PTR zPeriodico, 8
+    MOV DWORD PTR zJack, 5
+    MOV DWORD PTR hCono, 4
+    MOV DWORD PTR hPeriodico, 5
+    MOV DWORD PTR hJack, 4
+    JMP ConfigurarNivel_Fin
+
+Nivel_5:
+    MOV DWORD PTR zClasico, 10
+    MOV DWORD PTR zCono, 10
+    MOV DWORD PTR zPeriodico, 10
+    MOV DWORD PTR zJack, 6
+    MOV DWORD PTR zColgado, 6
+    MOV DWORD PTR hClasico, 5
+    MOV DWORD PTR hCono, 5
+    MOV DWORD PTR hPeriodico, 6
+    MOV DWORD PTR hJack, 4
+    MOV DWORD PTR hColgado, 4
+
+ConfigurarNivel_Fin:
+    RET
+
+ConfigurarNivel ENDP
+
+ContarZombiesActivos PROC USES ESI ECX
+
+    XOR EAX, EAX
+
+    LEA ESI, horda
+    MOV ECX, 30
+
+ContarActivos_Ciclo:
+    CMP BYTE PTR [ESI].Entidad.ID, ID_ZOMBIE_CLASICO
+    JB ContarActivos_Siguiente
+
+    CMP BYTE PTR [ESI].Entidad.ID, ID_ZOMBIE_COLGADO
+    JA ContarActivos_Siguiente
+
+    INC EAX
+
+ContarActivos_Siguiente:
+    ADD ESI, TYPE Entidad
+    DEC ECX
+    JNZ ContarActivos_Ciclo
+
+    RET
+
+ContarZombiesActivos ENDP
+
+TotalZombiesRestantes PROC
+
+    MOV EAX, zClasico
+    ADD EAX, zCono
+    ADD EAX, zPeriodico
+    ADD EAX, zJack
+    ADD EAX, zColgado
+
+    ADD EAX, hClasico
+    ADD EAX, hCono
+    ADD EAX, hPeriodico
+    ADD EAX, hJack
+    ADD EAX, hColgado
+
+    RET
+
+TotalZombiesRestantes ENDP
+
+ElegirZombieNormalASM PROC USES EBX EDX
+
+    MOV EAX, zClasico
+    ADD EAX, zCono
+    ADD EAX, zPeriodico
+    ADD EAX, zJack
+    ADD EAX, zColgado
+
+    CMP EAX, 0
+    JE ElegirNormal_Ninguno
+
+    INC DWORD PTR contadorOleada
+
+    MOV EBX, EAX
+    MOV EAX, contadorOleada
+    XOR EDX, EDX
+    DIV EBX
+
+    MOV EAX, EDX
+
+    CMP EAX, zClasico
+    JB ElegirNormal_Clasico
+    SUB EAX, zClasico
+
+    CMP EAX, zCono
+    JB ElegirNormal_Cono
+    SUB EAX, zCono
+
+    CMP EAX, zPeriodico
+    JB ElegirNormal_Periodico
+    SUB EAX, zPeriodico
+
+    CMP EAX, zJack
+    JB ElegirNormal_Jack
+    SUB EAX, zJack
+
+    CMP EAX, zColgado
+    JB ElegirNormal_Colgado
+
+ElegirNormal_Ninguno:
+    MOV EAX, 0
+    RET
+
+ElegirNormal_Clasico:
+    DEC DWORD PTR zClasico
+    MOV EAX, ID_ZOMBIE_CLASICO
+    RET
+
+ElegirNormal_Cono:
+    DEC DWORD PTR zCono
+    MOV EAX, ID_ZOMBIE_CONO
+    RET
+
+ElegirNormal_Periodico:
+    DEC DWORD PTR zPeriodico
+    MOV EAX, ID_ZOMBIE_PERIODICO
+    RET
+
+ElegirNormal_Jack:
+    DEC DWORD PTR zJack
+    MOV EAX, ID_ZOMBIE_JACK
+    RET
+
+ElegirNormal_Colgado:
+    DEC DWORD PTR zColgado
+    MOV EAX, ID_ZOMBIE_COLGADO
+    RET
+
+ElegirZombieNormalASM ENDP
+
+ElegirZombieHordaASM PROC USES EBX EDX
+
+    MOV EAX, hClasico
+    ADD EAX, hCono
+    ADD EAX, hPeriodico
+    ADD EAX, hJack
+    ADD EAX, hColgado
+
+    CMP EAX, 0
+    JE ElegirHorda_Ninguno
+
+    INC DWORD PTR contadorOleada
+
+    MOV EBX, EAX
+    MOV EAX, contadorOleada
+    ADD EAX, contadorSpawn
+    XOR EDX, EDX
+    DIV EBX
+
+    MOV EAX, EDX
+
+    CMP EAX, hClasico
+    JB ElegirHorda_Clasico
+    SUB EAX, hClasico
+
+    CMP EAX, hCono
+    JB ElegirHorda_Cono
+    SUB EAX, hCono
+
+    CMP EAX, hPeriodico
+    JB ElegirHorda_Periodico
+    SUB EAX, hPeriodico
+
+    CMP EAX, hJack
+    JB ElegirHorda_Jack
+    SUB EAX, hJack
+
+    CMP EAX, hColgado
+    JB ElegirHorda_Colgado
+
+ElegirHorda_Ninguno:
+    MOV EAX, 0
+    RET
+
+ElegirHorda_Clasico:
+    DEC DWORD PTR hClasico
+    MOV EAX, ID_ZOMBIE_CLASICO
+    RET
+
+ElegirHorda_Cono:
+    DEC DWORD PTR hCono
+    MOV EAX, ID_ZOMBIE_CONO
+    RET
+
+ElegirHorda_Periodico:
+    DEC DWORD PTR hPeriodico
+    MOV EAX, ID_ZOMBIE_PERIODICO
+    RET
+
+ElegirHorda_Jack:
+    DEC DWORD PTR hJack
+    MOV EAX, ID_ZOMBIE_JACK
+    RET
+
+ElegirHorda_Colgado:
+    DEC DWORD PTR hColgado
+    MOV EAX, ID_ZOMBIE_COLGADO
+    RET
+
+ElegirZombieHordaASM ENDP
+
+InvocarZombieASM PROC USES EBX EDX, tipo:DWORD
+
+    MOV EAX, tipo
+
+    CMP EAX, 0
+    JE InvocarZombie_Fin
+
+    CMP EAX, ID_ZOMBIE_COLGADO
+    JE InvocarZombie_Colgado
+
+    INC DWORD PTR contadorOleada
+
+    MOV EAX, contadorOleada
+    XOR EDX, EDX
+    MOV EBX, 5
+    DIV EBX
+
+    PUSH tipo
+    PUSH 790
+    PUSH EDX
+    CALL AparecerZombie
+    ADD ESP, 12
+
+    JMP InvocarZombie_Fin
+
+InvocarZombie_Colgado:
+    CALL AparecerZombieColgado
+
+InvocarZombie_Fin:
+    RET
+
+InvocarZombieASM ENDP
+
+ActualizarNivel PROC USES EAX
+
+    CMP DWORD PTR modoPrueba, 1
+    JE ActualizarNivel_Fin
+
+    CMP DWORD PTR nivelTerminado, 1
+    JE ActualizarNivel_Fin
+
+    INC DWORD PTR contadorSpawn
+
+    CMP DWORD PTR hordaFinalActiva, 0
+    JNE ActualizarNivel_Horda
+
+ActualizarNivel_Normal:
+    CMP DWORD PTR contadorSpawn, 500                  ;Spawn Zombies normales
+    JB ActualizarNivel_VerificarFin
+
+    MOV DWORD PTR contadorSpawn, 0
+
+    CALL ElegirZombieNormalASM
+
+    CMP EAX, 0
+    JE ActivarHordaFinal
+
+    PUSH EAX
+    CALL InvocarZombieASM
+    ADD ESP, 4
+
+    JMP ActualizarNivel_VerificarFin
+
+ActivarHordaFinal:
+    MOV DWORD PTR hordaFinalActiva, 1
+    JMP ActualizarNivel_VerificarFin
+
+ActualizarNivel_Horda:
+    CMP DWORD PTR contadorSpawn, 70                   ;Spawn Zombies de la horda final
+
+    JB ActualizarNivel_VerificarFin
+
+    MOV DWORD PTR contadorSpawn, 0
+
+    CALL ElegirZombieHordaASM
+
+    CMP EAX, 0
+    JE ActualizarNivel_VerificarFin
+
+    PUSH EAX
+    CALL InvocarZombieASM
+    ADD ESP, 4
+
+ActualizarNivel_VerificarFin:
+    CMP DWORD PTR hordaFinalActiva, 1
+    JNE ActualizarNivel_Fin
+
+    CALL TotalZombiesRestantes
+    CMP EAX, 0
+    JNE ActualizarNivel_Fin
+
+    CALL ContarZombiesActivos
+    CMP EAX, 0
+    JNE ActualizarNivel_Fin
+
+    MOV DWORD PTR nivelTerminado, 1
+
+ActualizarNivel_Fin:
+    RET
+
+ActualizarNivel ENDP
+
+
 
 END

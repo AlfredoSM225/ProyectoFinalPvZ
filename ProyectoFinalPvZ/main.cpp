@@ -4,6 +4,8 @@
 #include <iostream>
 #include <string>
 #include <algorithm>
+#include <cstdlib>
+#include <ctime>
 
 #pragma pack(push, 1)
 struct Entidad {
@@ -24,11 +26,38 @@ extern "C" {
     void AparecerZombie(uint32_t fila, uint32_t coordenadaX, uint32_t tipo);
     void AparecerZombieColgado();
     void IntentarColocarPlanta(uint32_t fila, uint32_t columna, uint32_t tipo);
+    void ConfigurarNivel(uint32_t nivel);
+    void ActualizarNivel();
+
     extern Entidad defensa[45];
     extern Entidad horda[30];
     extern Entidad disparos[50];
+
     extern uint32_t soles;
+    extern uint32_t modoPrueba;
+    extern uint32_t nivelActual;
+    extern uint32_t contadorSpawn;
+    extern uint32_t hordaFinalActiva;
+    extern uint32_t nivelTerminado;
 }
+
+struct Nivel {
+    bool plantasDisponibles[5];
+
+    int clasicos;
+    int cono;
+    int periodico;
+    int jack;
+    int colgado;
+
+    int hordaClasicos;
+    int hordaCono;
+    int hordaPeriodico;
+    int hordaJack;
+    int hordaColgado;
+};
+
+Nivel niveles[5];
 
 // ═══════════════════════════════════════════════════════════════
 //  CONSTANTES DE LAYOUT
@@ -45,6 +74,43 @@ static const float GUISANTE_TAM = 26.f; // tamaño del proyectil
 // Centro X/Y de una celda (col, fila) en coordenadas de pantalla
 static inline float celdaCX(int col) { return col * CELDA_W + CELDA_W * 0.5f; }
 static inline float celdaCY(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.5f; }
+
+void InicializarNiveles() {
+    niveles[0] = {
+        { true, true, false, false, false },
+        12, 0, 0, 0, 0,
+        5, 0, 0, 0, 0
+    };
+
+    niveles[1] = {
+        { true, true, false, true, false },
+        14, 6, 0, 0, 0,
+        4, 3, 0, 0, 0
+    };
+
+    niveles[2] = {
+        { true, true, true, false, false },
+        12, 8, 6, 0, 0,
+        3, 4, 4, 0, 0
+    };
+
+    niveles[3] = {
+        { true, true, true, false, true },
+        10, 8, 8, 5, 0,
+        0, 4, 5, 4, 0
+    };
+
+    niveles[4] = {
+        { true, true, true, false, true },
+        10, 10, 10, 6, 6,
+        5, 5, 6, 4, 4
+    };
+}
+
+bool PlantaDisponible(const Nivel& nivel, uint32_t idPlanta) {
+    if (idPlanta < 1 || idPlanta > 5) return false;
+    return nivel.plantasDisponibles[idPlanta - 1];
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  GESTOR DE TEXTURAS
@@ -202,18 +268,19 @@ std::string nombrePlanta(uint32_t id) {
 // ═══════════════════════════════════════════════════════════════
 int main() {
 
-    InicializarJuego();
+    srand(static_cast<unsigned int>(time(nullptr)));
+
+    InicializarNiveles();
+    ConfigurarNivel(99);
+
+    Nivel nivelEnJuego = niveles[0];
+
+    uint32_t plantaSeleccionada = 2;
 
     GestorTexturas tex;
     tex.cargar();
 
-    uint32_t plantaSeleccionada = 2;
-
-    AparecerZombie(0, 790, 6);
-    AparecerZombie(2, 790, 7);
-    AparecerZombie(4, 790, 8);
-
-    sf::RenderWindow ventana(sf::VideoMode(800, 600), "PvZ ASM/C++ - Con Sprites");
+    sf::RenderWindow ventana(sf::VideoMode(800, 600), "PvZ ASM/C++ - Con Sprites y Niveles");
     ventana.setFramerateLimit(60);
 
     sf::Font fuente;
@@ -239,8 +306,19 @@ int main() {
     textoAyuda.setFont(fuente);
     textoAyuda.setCharacterSize(15);
     textoAyuda.setFillColor(sf::Color(200, 200, 200));
-    textoAyuda.setPosition(500.f, 558.f);
-    textoAyuda.setString("C=Zombie colgado | 6,7,8,9=zombies");
+    textoAyuda.setPosition(400.f, 558.f);
+
+    sf::Text textoNivel;
+    textoNivel.setFont(fuente);
+    textoNivel.setCharacterSize(18);
+    textoNivel.setFillColor(sf::Color::White);
+    textoNivel.setPosition(500.f, 35.f);
+
+    sf::Text textoHorda;
+    textoHorda.setFont(fuente);
+    textoHorda.setCharacterSize(28);
+    textoHorda.setFillColor(sf::Color::Red);
+    textoHorda.setPosition(300.f, 8.f);
 
     sf::Text simboloColgado;
     simboloColgado.setFont(fuente);
@@ -276,12 +354,70 @@ int main() {
 
             if (evento.type == sf::Event::KeyPressed) {
                 switch (evento.key.code) {
-                case sf::Keyboard::C:    AparecerZombieColgado();        break;
-                case sf::Keyboard::Num6: AparecerZombie(0, 790, 6);      break;
-                case sf::Keyboard::Num7: AparecerZombie(1, 790, 7);      break;
-                case sf::Keyboard::Num8: AparecerZombie(2, 790, 8);      break;
-                case sf::Keyboard::Num9: AparecerZombie(3, 790, 9);      break;
-                default: break;
+
+                case sf::Keyboard::T:
+                    ConfigurarNivel(99);
+                    nivelEnJuego = niveles[0];
+                    plantaSeleccionada = 2;
+                    break;
+
+                case sf::Keyboard::F1:
+                    ConfigurarNivel(0);
+                    nivelEnJuego = niveles[0];
+                    plantaSeleccionada = 2;
+                    break;
+
+                case sf::Keyboard::F2:
+                    ConfigurarNivel(1);
+                    nivelEnJuego = niveles[1];
+                    plantaSeleccionada = 2;
+                    break;
+
+                case sf::Keyboard::F3:
+                    ConfigurarNivel(2);
+                    nivelEnJuego = niveles[2];
+                    plantaSeleccionada = 2;
+                    break;
+
+                case sf::Keyboard::F4:
+                    ConfigurarNivel(3);
+                    nivelEnJuego = niveles[3];
+                    plantaSeleccionada = 2;
+                    break;
+
+                case sf::Keyboard::F5:
+                    ConfigurarNivel(4);
+                    nivelEnJuego = niveles[4];
+                    plantaSeleccionada = 2;
+                    break;
+
+                case sf::Keyboard::C:
+                    if (modoPrueba != 0)
+                        AparecerZombieColgado();
+                    break;
+
+                case sf::Keyboard::Num6:
+                    if (modoPrueba != 0)
+                        AparecerZombie(rand() % 5, 790, 6);
+                    break;
+
+                case sf::Keyboard::Num7:
+                    if (modoPrueba != 0)
+                        AparecerZombie(rand() % 5, 790, 7);
+                    break;
+
+                case sf::Keyboard::Num8:
+                    if (modoPrueba != 0)
+                        AparecerZombie(rand() % 5, 790, 8);
+                    break;
+
+                case sf::Keyboard::Num9:
+                    if (modoPrueba != 0)
+                        AparecerZombie(rand() % 5, 790, 9);
+                    break;
+
+                default:
+                    break;
                 }
             }
 
@@ -293,22 +429,53 @@ int main() {
 
                 if (my >= 0 && my < (int)BARRA_H) {
                     int op = mx / (int)CELDA_W;
-                    if (op >= 0 && op < 5)
-                        plantaSeleccionada = (uint32_t)(op + 1);
+
+                    if (op >= 0 && op < 5) {
+                        uint32_t posiblePlanta = (uint32_t)(op + 1);
+
+                        if (modoPrueba != 0 || PlantaDisponible(nivelEnJuego, posiblePlanta)) {
+                            plantaSeleccionada = posiblePlanta;
+                        }
+                    }
                 }
                 else if (my >= (int)BARRA_H && my < 550 && mx >= 0 && mx < 720) {
                     uint32_t fila = (uint32_t)((my - (int)BARRA_H) / (int)CELDA_H);
                     uint32_t columna = (uint32_t)(mx / (int)CELDA_W);
-                    if (fila < 5 && columna < 9)
-                        IntentarColocarPlanta(fila, columna, plantaSeleccionada);
+
+                    if (fila < 5 && columna < 9) {
+                        if (modoPrueba != 0 || PlantaDisponible(nivelEnJuego, plantaSeleccionada)) {
+                            IntentarColocarPlanta(fila, columna, plantaSeleccionada);
+                        }
+                    }
                 }
             }
         }
 
-        ActualizarJuego();
+        if (nivelTerminado == 0) {
+            ActualizarJuego();
+            ActualizarNivel();
+        }
 
         textoSoles.setString("Soles: " + std::to_string(soles));
         textoSeleccion.setString("Sel: " + nombrePlanta(plantaSeleccionada));
+        textoAyuda.setString("T=Prueba | F1-F5=Niveles | 6-9/C=Spawn manual en prueba");
+
+        if (modoPrueba != 0) {
+            textoNivel.setString("Modo prueba");
+        }
+        else {
+            textoNivel.setString("Nivel: " + std::to_string(nivelActual + 1));
+        }
+
+        if (hordaFinalActiva != 0 && modoPrueba == 0 && nivelTerminado == 0) {
+            textoHorda.setString("HORDA FINAL");
+        }
+        else if (nivelTerminado != 0) {
+            textoHorda.setString("NIVEL COMPLETADO");
+        }
+        else {
+            textoHorda.setString("");
+        }
 
         // ────────────────────────────────────────────────────────
         ventana.clear(sf::Color(34, 139, 34));
@@ -321,6 +488,7 @@ int main() {
             };
             ventana.draw(h, 2, sf::Lines);
         }
+
         for (int i = 1; i < 9; i++) {
             sf::Vertex v[] = {
                 sf::Vertex(sf::Vector2f(i * CELDA_W, BARRA_H), sf::Color(50,180,50)),
@@ -334,12 +502,20 @@ int main() {
 
         for (int i = 0; i < 5; i++) {
             uint32_t idSeed = (uint32_t)(i + 1);
+            bool disponible = (modoPrueba != 0) || PlantaDisponible(nivelEnJuego, idSeed);
+
             float cx = i * CELDA_W + CELDA_W * 0.5f;
             float cy = BARRA_H * 0.5f;
 
             // Fondo de celda
             celdaSeed.setPosition(i * CELDA_W + 3.f, 3.f);
-            if (plantaSeleccionada == idSeed) {
+
+            if (!disponible) {
+                celdaSeed.setFillColor(sf::Color(20, 20, 20, 220));
+                celdaSeed.setOutlineThickness(1.f);
+                celdaSeed.setOutlineColor(sf::Color(40, 40, 40));
+            }
+            else if (plantaSeleccionada == idSeed) {
                 celdaSeed.setFillColor(sf::Color(80, 70, 0, 200));
                 celdaSeed.setOutlineThickness(2.f);
                 celdaSeed.setOutlineColor(sf::Color(255, 220, 0));
@@ -349,6 +525,7 @@ int main() {
                 celdaSeed.setOutlineThickness(1.f);
                 celdaSeed.setOutlineColor(sf::Color(70, 70, 70));
             }
+
             ventana.draw(celdaSeed);
 
             // Sprite seed centrado en celda
@@ -356,13 +533,18 @@ int main() {
             escalarPorMayor(sprPlanta, SEED_TAM);
             centrarOrigen(sprPlanta);
             sprPlanta.setPosition(cx, cy);
-            sprPlanta.setColor(sf::Color::White);
+
+            if (disponible) {
+                sprPlanta.setColor(sf::Color::White);
+            }
+            else {
+                sprPlanta.setColor(sf::Color(80, 80, 80, 180));
+            }
+
             ventana.draw(sprPlanta);
         }
 
         // ── Plantas en campo ────────────────────────────────────
-        // posX del ASM = centro horizontal de la celda (col*80+40)
-        // Y lo calculamos desde filaY para asegurar centrado en celda
         for (int i = 0; i < 45; i++) {
             uint8_t id = defensa[i].id;
             if (id < 1 || id > 5) continue;
@@ -370,13 +552,10 @@ int main() {
             sf::Texture& t = tex.texturaCampo(id, defensa[i].estado, defensa[i].vida);
 
             sprPlanta.setTexture(t);
-            // Escalar por ALTURA para que el sprite real llene la celda
-            // sin importar cuánto espacio transparente tenga el canvas
             escalarPorAltura(sprPlanta, PLANTA_TAM);
             centrarOrigen(sprPlanta);
             sprPlanta.setColor(sf::Color::White);
 
-            // Usar filaY para Y (más fiable que depender del campo posX del ASM para Y)
             float px = static_cast<float>(defensa[i].posX);
             float py = celdaCY(defensa[i].filaY);
 
@@ -385,7 +564,6 @@ int main() {
         }
 
         // ── Proyectiles (guisantes) ─────────────────────────────
-        // Configurar escala UNA sola vez antes del loop
         sprDisparo.setTexture(tex.guisante);
         escalarPorMayor(sprDisparo, GUISANTE_TAM);
         centrarOrigen(sprDisparo);
@@ -393,10 +571,12 @@ int main() {
 
         for (int i = 0; i < 50; i++) {
             if (disparos[i].id != 20) continue;
+
             sprDisparo.setPosition(
                 static_cast<float>(disparos[i].posX),
                 celdaCY(disparos[i].filaY)
             );
+
             ventana.draw(sprDisparo);
         }
 
@@ -410,7 +590,7 @@ int main() {
             float x = static_cast<float>(horda[i].posX);
             float y = celdaCY(horda[i].filaY);
 
-            if (id == 10) y -= 35.f;  // colgado sube
+            if (id == 10) y -= 35.f;
 
             figZombie.setPosition(x, y);
             ventana.draw(figZombie);
@@ -425,6 +605,8 @@ int main() {
         ventana.draw(textoSoles);
         ventana.draw(textoSeleccion);
         ventana.draw(textoAyuda);
+        ventana.draw(textoNivel);
+        ventana.draw(textoHorda);
 
         ventana.display();
     }
