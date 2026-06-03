@@ -1058,7 +1058,7 @@ Instakill_ZombieParaCarnivora:
 
     ; Estado 2 = atacando/masticando (sprite chomper_[1])
     MOV BYTE PTR [ESI].Entidad.Estado, ESTADO_ATACANDO
-    MOV DWORD PTR [ESI].Entidad.Reloj, 120
+    MOV DWORD PTR [ESI].Entidad.Reloj, 300
 
     JMP Instakill_SiguienteCarnivora
 
