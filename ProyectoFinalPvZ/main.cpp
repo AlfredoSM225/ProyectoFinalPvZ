@@ -72,7 +72,7 @@ Nivel niveles[5];
 static const float BARRA_H = 50.f;
 static const float CELDA_W = 80.f;
 static const float CELDA_H = 100.f;
-static const float PLANTA_TAM = 60.f;
+static const float PLANTA_TAM = 80.f;
 static const float ZOMBIE_TAM = 110.f;  // zombies mas altos que las plantas
 static const float SEED_TAM = 60.f;
 static const float GUISANTE_TAM = 26.f;
@@ -80,7 +80,8 @@ static const float GUISANTE_TAM = 26.f;
 static const uint32_t ID_PALA = 99;
 
 static inline float celdaCX(int col) { return col * CELDA_W + CELDA_W * 0.5f; }
-static inline float celdaCY(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.7f; }
+static inline float celdaCY(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.7f; }  // plantas
+static inline float celdaCYZombie(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.4f; }  // zombies
 
 void InicializarNiveles() {
     niveles[0] = {
@@ -291,14 +292,18 @@ struct GestorTexturas {
         }
     }
 
-    // Devuelve el sprite de muerte segun tipo de zombie
-    sf::Texture& texturaMuerto(uint8_t id) {
+    // Devuelve el sprite de muerte segun tipo de zombie.
+    // Para Jack: si murio explotando (estado==ATACANDO) muestra el sprite de ataque,
+    // si murio por daño normal muestra el _Dead.
+    sf::Texture& texturaMuerto(uint8_t id, uint8_t estadoAlMorir) {
         switch (id) {
         case 6:  return zmbDead_;
         case 7:  return zmbConoDead_;
         case 8:  return zmpPerDead_;
-        case 9:  return zmbJackDead_;
-        case 10: return zomC_[2];   // colgado usa ultimo frame como muerte
+        case 9:
+            // Jack exploto → sprite de ataque congelado; mato una planta → _Dead
+            return (estadoAlMorir == ESTADO_ATACANDO) ? zmbJackAtk_[0] : zmbJackDead_;
+        case 10: return zomC_[2];
         default: return fallback;
         }
     }
@@ -372,15 +377,17 @@ int main() {
     // ── Registro de zombies muertos (animacion de muerte en C++) ──
     struct ZombieMuerto {
         uint8_t  id;
+        uint8_t  estadoAlMorir;  // estado del zombie en el tick que murio
         float    x, y;
-        int      framesTTL;  // cuantos frames queda visible (countdown)
+        int      framesTTL;
     };
     static const int MAX_MUERTOS = 30;
     ZombieMuerto muertos[MAX_MUERTOS] = {};
 
     // Snapshot del frame anterior para detectar zombies que desaparecieron
     struct SnapZombie {
-        uint8_t id;
+        uint8_t  id;
+        uint8_t  estado;         // estado en el tick anterior
         uint16_t posX;
         uint8_t  filaY;
         uint8_t  vida;
@@ -607,9 +614,10 @@ int main() {
                 for (int m = 0; m < MAX_MUERTOS; m++) {
                     if (muertos[m].framesTTL <= 0) {
                         muertos[m].id = snapAnterior[i].id;
+                        muertos[m].estadoAlMorir = snapAnterior[i].estado;
                         muertos[m].x = static_cast<float>(snapAnterior[i].posX);
-                        muertos[m].y = celdaCY(snapAnterior[i].filaY);
-                        muertos[m].framesTTL = 40;  // visible 40 frames (~0.67s a 60fps)
+                        muertos[m].y = celdaCYZombie(snapAnterior[i].filaY);
+                        muertos[m].framesTTL = 40;
                         break;
                     }
                 }
@@ -617,6 +625,7 @@ int main() {
 
             // Actualizar snapshot para el proximo tick
             snapAnterior[i].id = horda[i].id;
+            snapAnterior[i].estado = horda[i].estado;
             snapAnterior[i].posX = horda[i].posX;
             snapAnterior[i].filaY = horda[i].filaY;
             snapAnterior[i].vida = horda[i].vida;
@@ -767,7 +776,7 @@ int main() {
             if (id < 6 || id > 10) continue;
 
             float x = static_cast<float>(horda[i].posX);
-            float y = celdaCY(horda[i].filaY);
+            float y = celdaCYZombie(horda[i].filaY);
 
             // Colgado: dibuja la cuerda encima del zombie
             if (id == 10) {
@@ -807,7 +816,7 @@ int main() {
                 ? (uint8_t)(muertos[m].framesTTL * 12)
                 : 255;
 
-            sf::Texture& td = tex.texturaMuerto(muertos[m].id);
+            sf::Texture& td = tex.texturaMuerto(muertos[m].id, muertos[m].estadoAlMorir);
 
             sprZombie = sf::Sprite();
             sprZombie.setTexture(td);
