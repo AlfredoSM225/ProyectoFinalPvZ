@@ -924,7 +924,13 @@ Cereza_Buscar:
 
     INC DWORD PTR [ESI].Entidad.Reloj
 
+    ; Al llegar a 60: activar sprite de explosión (estado = ESTADO_ATACANDO)
     CMP DWORD PTR [ESI].Entidad.Reloj, 60
+    JB Cereza_Siguiente
+    JE Cereza_MostrarExplosion
+
+    ; A partir de 80: aplicar daño y eliminar
+    CMP DWORD PTR [ESI].Entidad.Reloj, 80
     JB Cereza_Siguiente
 
     LEA EDI, horda
@@ -975,6 +981,11 @@ Cereza_SiguienteZombie:
     JNZ Cereza_BuscarZombie
 
     CALL LimpiarEntidad
+    JMP Cereza_Siguiente
+
+Cereza_MostrarExplosion:
+    ; Cambiar estado para que el C++ dibuje cherry_[1] (explosión)
+    MOV BYTE PTR [ESI].Entidad.Estado, ESTADO_ATACANDO
 
 Cereza_Siguiente:
     ADD ESI, TYPE Entidad
@@ -996,14 +1007,25 @@ Instakill_BuscarCarnivora:
     CMP BYTE PTR [ESI].Entidad.ID, ID_CARNIVORA
     JNE Instakill_SiguienteCarnivora
 
+    ; Si está en cooldown (ESTADO_ATACANDO con reloj > 0), decrementar y esperar
+    CMP BYTE PTR [ESI].Entidad.Estado, ESTADO_ATACANDO
+    JNE Carnivora_Lista
+
+    ; Está en cooldown: decrementar reloj
     CMP DWORD PTR [ESI].Entidad.Reloj, 0
-    JE Carnivora_Lista
+    JE Carnivora_TerminoCooldown
 
     DEC DWORD PTR [ESI].Entidad.Reloj
     JMP Instakill_SiguienteCarnivora
 
+Carnivora_TerminoCooldown:
+    ; Cooldown terminó: volver a estado idle y listo para atacar
+    MOV BYTE PTR [ESI].Entidad.Estado, ESTADO_QUIETO
+    JMP Instakill_SiguienteCarnivora
+
 Carnivora_Lista:
 
+    ; Solo busca zombies si está en estado idle (ESTADO_QUIETO o ESTADO_INACTIVO)
     LEA EDI, horda
     MOV EDX, 30
 
@@ -1034,7 +1056,9 @@ Instakill_ZombieParaCarnivora:
     CALL LimpiarEntidad
     POP ESI
 
-    MOV DWORD PTR [ESI].Entidad.Reloj, 180
+    ; Estado 2 = atacando/masticando (sprite chomper_[1])
+    MOV BYTE PTR [ESI].Entidad.Estado, ESTADO_ATACANDO
+    MOV DWORD PTR [ESI].Entidad.Reloj, 120
 
     JMP Instakill_SiguienteCarnivora
 
