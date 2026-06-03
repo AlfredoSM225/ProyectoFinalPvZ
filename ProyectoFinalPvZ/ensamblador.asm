@@ -1178,11 +1178,13 @@ Nivel_Prueba:
     JMP ConfigurarNivel_Fin
 
 Nivel_1:
+    MOV DWORD PTR soles, 150
     MOV DWORD PTR zClasico, 12
     MOV DWORD PTR hClasico, 5
     JMP ConfigurarNivel_Fin
 
 Nivel_2:
+    MOV DWORD PTR soles, 50
     MOV DWORD PTR zClasico, 14
     MOV DWORD PTR zCono, 6
     MOV DWORD PTR hClasico, 4
@@ -1190,6 +1192,7 @@ Nivel_2:
     JMP ConfigurarNivel_Fin
 
 Nivel_3:
+    MOV DWORD PTR soles, 50
     MOV DWORD PTR zClasico, 12
     MOV DWORD PTR zCono, 8
     MOV DWORD PTR zPeriodico, 6
@@ -1199,6 +1202,7 @@ Nivel_3:
     JMP ConfigurarNivel_Fin
 
 Nivel_4:
+    MOV DWORD PTR soles, 50
     MOV DWORD PTR zClasico, 10
     MOV DWORD PTR zCono, 8
     MOV DWORD PTR zPeriodico, 8
@@ -1209,6 +1213,7 @@ Nivel_4:
     JMP ConfigurarNivel_Fin
 
 Nivel_5:
+    MOV DWORD PTR soles, 50
     MOV DWORD PTR zClasico, 10
     MOV DWORD PTR zCono, 10
     MOV DWORD PTR zPeriodico, 10

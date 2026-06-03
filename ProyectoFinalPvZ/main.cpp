@@ -301,8 +301,8 @@ struct GestorTexturas {
         case 7:  return zmbConoDead_;
         case 8:  return zmpPerDead_;
         case 9:
-            // Jack exploto → sprite de ataque congelado; mato una planta → _Dead
-            return (estadoAlMorir == ESTADO_ATACANDO) ? zmbJackAtk_[0] : zmbJackDead_;
+            // Jack exploto → sprite atk_2 (explosion); mato una planta → _Dead
+            return (estadoAlMorir == ESTADO_ATACANDO) ? zmbJackAtk_[1] : zmbJackDead_;
         case 10: return zomC_[2];
         default: return fallback;
         }
@@ -380,6 +380,7 @@ int main() {
         uint8_t  estadoAlMorir;  // estado del zombie en el tick que murio
         float    x, y;
         int      framesTTL;
+        bool     jackExploto;    // true si Jack murio explotando al tocar una planta (vida>0)
     };
     static const int MAX_MUERTOS = 30;
     ZombieMuerto muertos[MAX_MUERTOS] = {};
@@ -393,6 +394,27 @@ int main() {
         uint8_t  vida;
     };
     SnapZombie snapAnterior[30] = {};
+
+    // Snapshot de plantas para detectar las que desaparecen por Jack
+    struct SnapPlanta {
+        uint8_t  id;
+        uint8_t  estado;
+        uint8_t  vida;
+        uint8_t  filaY;
+        uint16_t posX;
+    };
+    SnapPlanta snapPlantaAnterior[45] = {};
+
+    // Plantas "fantasma": se muestran durante la animacion de explosion de Jack
+    struct PlantaFantasma {
+        uint8_t  id;
+        uint8_t  estado;
+        uint8_t  vida;
+        float    x, y;
+        int      framesTTL;
+    };
+    static const int MAX_FANTASMAS = 10;
+    PlantaFantasma plantasFantasma[MAX_FANTASMAS] = {};
 
     GestorTexturas tex;
     tex.cargar();
@@ -610,6 +632,10 @@ int main() {
             bool muertoAhora = (horda[i].id == 0);
 
             if (vivoAntes && muertoAhora) {
+                // Jack: vida>0 al morir = exploto al tocar planta;
+                // vida==0 = lo mataron disparos/cereza => sprite _Dead.
+                bool jackExploto = (snapAnterior[i].id == 9 && snapAnterior[i].vida > 0);
+
                 // Buscar hueco en el array de muertos
                 for (int m = 0; m < MAX_MUERTOS; m++) {
                     if (muertos[m].framesTTL <= 0) {
@@ -617,8 +643,38 @@ int main() {
                         muertos[m].estadoAlMorir = snapAnterior[i].estado;
                         muertos[m].x = static_cast<float>(snapAnterior[i].posX);
                         muertos[m].y = celdaCYZombie(snapAnterior[i].filaY);
-                        muertos[m].framesTTL = 40;
+                        muertos[m].jackExploto = jackExploto;
+                        muertos[m].framesTTL = jackExploto ? 50 : 40;
                         break;
+                    }
+                }
+
+                // Si Jack exploto, buscar la planta que desaparecio en este mismo tick
+                // y guardarla como fantasma para que siga visible durante la animacion
+                if (jackExploto) {
+                    for (int p = 0; p < 45; p++) {
+                        bool plantaVivaAntes = (snapPlantaAnterior[p].id >= 1 && snapPlantaAnterior[p].id <= 5);
+                        bool plantaMuertaAhora = (defensa[p].id == 0);
+                        if (!plantaVivaAntes || !plantaMuertaAhora) continue;
+
+                        // Verificar que esta planta estaba en la misma fila y cerca de Jack
+                        if (snapPlantaAnterior[p].filaY != snapAnterior[i].filaY) continue;
+                        int dx = (int)snapAnterior[i].posX - (int)snapPlantaAnterior[p].posX;
+                        if (dx < -70 || dx > 70) continue;
+
+                        // Guardar como fantasma
+                        for (int f = 0; f < MAX_FANTASMAS; f++) {
+                            if (plantasFantasma[f].framesTTL <= 0) {
+                                plantasFantasma[f].id = snapPlantaAnterior[p].id;
+                                plantasFantasma[f].estado = snapPlantaAnterior[p].estado;
+                                plantasFantasma[f].vida = snapPlantaAnterior[p].vida;
+                                plantasFantasma[f].x = static_cast<float>(snapPlantaAnterior[p].posX);
+                                plantasFantasma[f].y = celdaCY(snapPlantaAnterior[p].filaY);
+                                plantasFantasma[f].framesTTL = 40;
+                                break;
+                            }
+                        }
+                        break; // solo una planta por Jack
                     }
                 }
             }
@@ -629,6 +685,15 @@ int main() {
             snapAnterior[i].posX = horda[i].posX;
             snapAnterior[i].filaY = horda[i].filaY;
             snapAnterior[i].vida = horda[i].vida;
+        }
+
+        // Actualizar snapshot de plantas
+        for (int p = 0; p < 45; p++) {
+            snapPlantaAnterior[p].id = defensa[p].id;
+            snapPlantaAnterior[p].estado = defensa[p].estado;
+            snapPlantaAnterior[p].vida = defensa[p].vida;
+            snapPlantaAnterior[p].filaY = defensa[p].filaY;
+            snapPlantaAnterior[p].posX = defensa[p].posX;
         }
 
         textoSoles.setString("Soles: " + std::to_string(soles));
@@ -754,6 +819,26 @@ int main() {
             ventana.draw(sprPlanta);
         }
 
+        // ── Plantas fantasma (se mantienen visibles durante la explosion de Jack) ──
+        for (int f = 0; f < MAX_FANTASMAS; f++) {
+            if (plantasFantasma[f].framesTTL <= 0) continue;
+            plantasFantasma[f].framesTTL--;
+
+            sf::Texture& tf = tex.texturaCampo(
+                plantasFantasma[f].id,
+                plantasFantasma[f].estado,
+                plantasFantasma[f].vida,
+                0);
+
+            sprPlanta = sf::Sprite();
+            sprPlanta.setTexture(tf);
+            escalarPorAltura(sprPlanta, PLANTA_TAM);
+            centrarOrigen(sprPlanta);
+            sprPlanta.setColor(sf::Color::White);
+            sprPlanta.setPosition(plantasFantasma[f].x, plantasFantasma[f].y);
+            ventana.draw(sprPlanta);
+        }
+
         // ── Proyectiles (guisantes) ─────────────────────────────
         sprDisparo.setTexture(tex.guisante);
         escalarPorMayor(sprDisparo, GUISANTE_TAM);
@@ -806,6 +891,11 @@ int main() {
         }
 
         // ── Zombies muertos (animacion de muerte gestionada en C++) ──
+        // Los sprites de muerte tienen dimensiones distintas a los de walk,
+        // por eso se escalan a ZOMBIE_TAM/1.5 y se baja el punto de anclaje
+        // para que la base quede al nivel del suelo correcto.
+        static const float ZOMBIE_MUERTO_TAM = ZOMBIE_TAM / 1.5f;
+
         for (int m = 0; m < MAX_MUERTOS; m++) {
             if (muertos[m].framesTTL <= 0) continue;
 
@@ -816,14 +906,27 @@ int main() {
                 ? (uint8_t)(muertos[m].framesTTL * 12)
                 : 255;
 
-            sf::Texture& td = tex.texturaMuerto(muertos[m].id, muertos[m].estadoAlMorir);
+            sf::Texture* ptd = nullptr;
+            if (muertos[m].id == 9 && muertos[m].jackExploto) {
+                // Explosion de Jack: primeros 25 frames = atk_1, luego = atk_2
+                ptd = (muertos[m].framesTTL >= 25)
+                    ? &tex.zmbJackAtk_[0]
+                    : &tex.zmbJackAtk_[1];
+            }
+            else {
+                ptd = &tex.texturaMuerto(muertos[m].id, muertos[m].estadoAlMorir);
+            }
+
+            bool esExplosionJack = (muertos[m].id == 9 && muertos[m].jackExploto);
+            float tamMuerto = esExplosionJack ? ZOMBIE_TAM : ZOMBIE_MUERTO_TAM;
+            float offsetY = esExplosionJack ? 0.f : ZOMBIE_MUERTO_TAM * 0.5f;
 
             sprZombie = sf::Sprite();
-            sprZombie.setTexture(td);
-            escalarPorAltura(sprZombie, ZOMBIE_TAM);
+            sprZombie.setTexture(*ptd);
+            escalarPorAltura(sprZombie, tamMuerto);
             centrarOrigen(sprZombie);
             sprZombie.setColor(sf::Color(255, 255, 255, alpha));
-            sprZombie.setPosition(muertos[m].x, muertos[m].y);
+            sprZombie.setPosition(muertos[m].x, muertos[m].y + offsetY);
             ventana.draw(sprZombie);
         }
 
