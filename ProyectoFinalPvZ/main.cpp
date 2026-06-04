@@ -42,7 +42,7 @@ extern "C" {
     extern uint32_t juegoTerminado;
 }
 
-// ── Estados (mismos valores que el ASM) ──────────────────────
+//Estados
 static const uint8_t ESTADO_INACTIVO = 0;
 static const uint8_t ESTADO_CAMINANDO = 1;
 static const uint8_t ESTADO_ATACANDO = 2;
@@ -66,21 +66,19 @@ struct Nivel {
 
 Nivel niveles[5];
 
-// ═══════════════════════════════════════════════════════════════
-//  CONSTANTES DE LAYOUT
-// ═══════════════════════════════════════════════════════════════
+//CONSTANTES DE LAYOUT
 static const float BARRA_H = 50.f;
 static const float CELDA_W = 80.f;
 static const float CELDA_H = 100.f;
 static const float PLANTA_TAM = 80.f;
-static const float ZOMBIE_TAM = 110.f;  // zombies mas altos que las plantas
+static const float ZOMBIE_TAM = 110.f;
 static const float SEED_TAM = 60.f;
 static const float GUISANTE_TAM = 26.f;
 
 static const uint32_t ID_PALA = 99;
 
 static inline float celdaCX(int col) { return col * CELDA_W + CELDA_W * 0.5f; }
-static inline float celdaCY(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.7f; }  // plantas
+static inline float celdaCY(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.7f; }  // planta
 static inline float celdaCYZombie(int fil) { return BARRA_H + fil * CELDA_H + CELDA_H * 0.4f; }  // zombies
 
 void InicializarNiveles() {
@@ -120,12 +118,10 @@ bool PlantaDisponible(const Nivel& nivel, uint32_t idPlanta) {
     return nivel.plantasDisponibles[idPlanta - 1];
 }
 
-// ═══════════════════════════════════════════════════════════════
 //  GESTOR DE TEXTURAS
-// ═══════════════════════════════════════════════════════════════
 struct GestorTexturas {
 
-    // ── Plantas ──────────────────────────────────────────────
+    //Plantas
     sf::Texture girasol;
     sf::Texture lnzGst;
     sf::Texture nuez_[3];     // [0]=sana  [1]=media  [2]=critica
@@ -140,7 +136,7 @@ struct GestorTexturas {
     sf::Texture seedChomper;
     sf::Texture pala;
 
-    // ── Zombies ──────────────────────────────────────────────
+    //Zombies
     sf::Texture zmb_[2];        // clasico: [0]=walk1  [1]=walk2
     sf::Texture zmbAtk_[2];     // clasico: [0]=atk1   [1]=atk2
     sf::Texture zmbDead_;       // clasico: muerto
@@ -163,9 +159,8 @@ struct GestorTexturas {
 
     sf::Texture fallback;
 
-    // ── Carga ───────────────────────────────────────────────────
+    // Carga
     void cargar() {
-        // Fallback magenta 32x32
         sf::Image img; img.create(32, 32, sf::Color(255, 0, 255));
         fallback.loadFromImage(img);
 
@@ -177,7 +172,7 @@ struct GestorTexturas {
             t.setSmooth(false);
             };
 
-        // ── Plantas ─────────────────────────────────────────
+        //Plantas
         tryLoad(girasol, "Sprites/Plantas/Girasol.png");
         tryLoad(lnzGst, "Sprites/Plantas/LnzGst.png");
         tryLoad(nuez_[0], "Sprites/Plantas/Nuez_1.png");
@@ -196,7 +191,7 @@ struct GestorTexturas {
         tryLoad(seedChomper, "Sprites/Plantas/ChomperSeed.png");
         tryLoad(pala, "Sprites/Plantas/Pala.png");
 
-        // ── Zombies ─────────────────────────────────────────
+        // Zombies
         // Clasico
         tryLoad(zmb_[0], "Sprites/Zombies/Zmb_1.png");
         tryLoad(zmb_[1], "Sprites/Zombies/Zmb_2.png");
@@ -234,7 +229,7 @@ struct GestorTexturas {
         tryLoad(cuerda_, "Sprites/Zombies/Cuerda.png");
     }
 
-    // ── Textura de campo (plantas) ───────────────────────────
+    // Textura de campo
     sf::Texture& texturaCampo(uint8_t id, uint8_t estado, uint8_t vida, uint32_t reloj) {
         switch (id) {
         case 1: return girasol;
@@ -261,7 +256,7 @@ struct GestorTexturas {
         }
     }
 
-    // ── Textura de zombie ────────────────────────────────────
+    // Textura de zombie
     // animFrame: contador global que sube cada tick en el game loop,
     // independiente del reloj de logica del ASM.
     sf::Texture& texturaZombie(uint8_t id, uint8_t estado, uint8_t vida, uint32_t animFrame) {
@@ -343,9 +338,7 @@ void centrarOrigen(sf::Sprite& spr) {
     spr.setOrigin(b.left + b.width * 0.5f, b.top + b.height * 0.5f);
 }
 
-// ═══════════════════════════════════════════════════════════════
 //  Utilidades de debug
-// ═══════════════════════════════════════════════════════════════
 std::string nombrePlanta(uint32_t id) {
     switch (id) {
     case 1: return "Girasol";
@@ -358,9 +351,7 @@ std::string nombrePlanta(uint32_t id) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
 //  MAIN
-// ═══════════════════════════════════════════════════════════════
 int main() {
 
     srand(static_cast<unsigned int>(time(nullptr)));
@@ -372,9 +363,9 @@ int main() {
 
     uint32_t plantaSeleccionada = 2;
     int contadorCambioNivel = 0;
-    uint32_t animFrameZombie = 0;   // contador de animacion independiente del ASM
+    uint32_t animFrameZombie = 0;   // contador de animacion
 
-    // ── Registro de zombies muertos (animacion de muerte en C++) ──
+    //Registro de zombies muertos
     struct ZombieMuerto {
         uint8_t  id;
         uint8_t  estadoAlMorir;  // estado del zombie en el tick que murio
@@ -428,7 +419,7 @@ int main() {
         return -1;
     }
 
-    // ── HUD ───────────────────────────────────────────────────
+    // HUD
     sf::Text textoSoles;
     textoSoles.setFont(fuente);
     textoSoles.setCharacterSize(24);
@@ -466,21 +457,19 @@ int main() {
     textoGameOver.setString("GAME OVER");
     textoGameOver.setPosition(280.f, 250.f);
 
-    // ── Sprites reutilizables ─────────────────────────────────
+    // Sprites reutilizables
     sf::Sprite sprPlanta;
     sf::Sprite sprDisparo;
     sf::Sprite sprZombie;
 
-    // ── Barra de seeds ────────────────────────────────────────
+    // Barra de seeds
     sf::RectangleShape panelBarra(sf::Vector2f(800.f, BARRA_H));
     panelBarra.setFillColor(sf::Color(20, 20, 20, 200));
     panelBarra.setPosition(0.f, 0.f);
 
     sf::RectangleShape celdaSeed(sf::Vector2f(CELDA_W - 6.f, BARRA_H - 6.f));
 
-    // ═══════════════════════════════════════════════════════════
     //  GAME LOOP
-    // ═══════════════════════════════════════════════════════════
     while (ventana.isOpen()) {
 
         sf::Event evento;
@@ -623,9 +612,7 @@ int main() {
 
         animFrameZombie++;
 
-        // ── Detectar zombies que murieron este tick ──────────────
-        // Un zombie "murió" si en el frame anterior tenia id>=6 y vida>0,
-        // y ahora su slot tiene id=0 (LimpiarEntidad lo borró en el ASM).
+        // Detectar zombies que murieron este tick
         for (int i = 0; i < 30; i++) {
             bool vivoAntes = (snapAnterior[i].id >= 6 && snapAnterior[i].id <= 10
                 && snapAnterior[i].vida > 0);
@@ -633,7 +620,6 @@ int main() {
 
             if (vivoAntes && muertoAhora) {
                 // Jack: vida>0 al morir = exploto al tocar planta;
-                // vida==0 = lo mataron disparos/cereza => sprite _Dead.
                 bool jackExploto = (snapAnterior[i].id == 9 && snapAnterior[i].vida > 0);
 
                 // Buscar hueco en el array de muertos
@@ -722,10 +708,9 @@ int main() {
             textoHorda.setString("");
         }
 
-        // ────────────────────────────────────────────────────────
         ventana.clear(sf::Color(15, 10, 5));
 
-        // ── Fondo estilo PvZ ──────────────────────────────────
+        // Fondo PvZ
         {
             static const sf::Color FILA_CLARA(106, 154, 55);
             static const sf::Color FILA_OSCURA(82, 120, 40);
@@ -750,7 +735,7 @@ int main() {
             }
         }
 
-        // ── Barra de seeds ──────────────────────────────────────
+        // Barra de seeds
         ventana.draw(panelBarra);
 
         for (int i = 0; i < 6; i++) {
@@ -799,7 +784,7 @@ int main() {
             }
         }
 
-        // ── Plantas en campo ────────────────────────────────────
+        // Plantas en campo
         for (int i = 0; i < 45; i++) {
             uint8_t id = defensa[i].id;
             if (id < 1 || id > 5) continue;
@@ -819,7 +804,7 @@ int main() {
             ventana.draw(sprPlanta);
         }
 
-        // ── Plantas fantasma (se mantienen visibles durante la explosion de Jack) ──
+        // Plantas fantasma (se mantienen visibles durante la explosion de Jack) 
         for (int f = 0; f < MAX_FANTASMAS; f++) {
             if (plantasFantasma[f].framesTTL <= 0) continue;
             plantasFantasma[f].framesTTL--;
@@ -839,7 +824,7 @@ int main() {
             ventana.draw(sprPlanta);
         }
 
-        // ── Proyectiles (guisantes) ─────────────────────────────
+        // Proyectiles
         sprDisparo.setTexture(tex.guisante);
         escalarPorMayor(sprDisparo, GUISANTE_TAM);
         centrarOrigen(sprDisparo);
@@ -855,7 +840,7 @@ int main() {
             ventana.draw(sprDisparo);
         }
 
-        // ── Zombies ─────────────────────────────────────────────
+        // Zombies
         for (int i = 0; i < 30; i++) {
             uint8_t id = horda[i].id;
             if (id < 6 || id > 10) continue;
@@ -879,7 +864,7 @@ int main() {
                 id,
                 horda[i].estado,
                 horda[i].vida,
-                animFrameZombie         // contador global, no reloj del ASM
+                animFrameZombie         // contador global
             );
 
             sprZombie = sf::Sprite();
@@ -890,10 +875,8 @@ int main() {
             ventana.draw(sprZombie);
         }
 
-        // ── Zombies muertos (animacion de muerte gestionada en C++) ──
-        // Los sprites de muerte tienen dimensiones distintas a los de walk,
-        // por eso se escalan a ZOMBIE_TAM/1.5 y se baja el punto de anclaje
-        // para que la base quede al nivel del suelo correcto.
+        // Zombies muertos
+        // Los sprites de muerte tienen dimensiones distintas a los de walk
         static const float ZOMBIE_MUERTO_TAM = ZOMBIE_TAM / 1.5f;
 
         for (int m = 0; m < MAX_MUERTOS; m++) {
@@ -901,14 +884,12 @@ int main() {
 
             muertos[m].framesTTL--;
 
-            // Fade: alpha decrece de 255 a 0 en los ultimos 20 frames
             uint8_t alpha = (muertos[m].framesTTL < 20)
                 ? (uint8_t)(muertos[m].framesTTL * 12)
                 : 255;
 
             sf::Texture* ptd = nullptr;
             if (muertos[m].id == 9 && muertos[m].jackExploto) {
-                // Explosion de Jack: primeros 25 frames = atk_1, luego = atk_2
                 ptd = (muertos[m].framesTTL >= 25)
                     ? &tex.zmbJackAtk_[0]
                     : &tex.zmbJackAtk_[1];
@@ -930,7 +911,7 @@ int main() {
             ventana.draw(sprZombie);
         }
 
-        // ── HUD ─────────────────────────────────────────────────
+        // HUD
         ventana.draw(textoSoles);
         ventana.draw(textoSeleccion);
         ventana.draw(textoAyuda);
