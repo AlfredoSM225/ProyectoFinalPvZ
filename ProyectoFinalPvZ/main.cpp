@@ -85,31 +85,31 @@ static inline float celdaCYZombie(int fil) { return BARRA_H + fil * CELDA_H + CE
 
 void InicializarNiveles() {
     niveles[0] = {
-        { true, true, false, false, false },
+        { false, true, false, false, false },
         12, 0, 0, 0, 0,
         5, 0, 0, 0, 0
     };
 
     niveles[1] = {
-        { true, true, false, true, false },
+        { true, true, false, false, false },
         14, 6, 0, 0, 0,
         4, 3, 0, 0, 0
     };
 
     niveles[2] = {
-        { true, true, true, false, false },
+        { true, true, false, true, false },
         12, 8, 6, 0, 0,
         3, 4, 4, 0, 0
     };
 
     niveles[3] = {
-        { true, true, true, false, true },
+        { true, true, true, true, false },
         10, 8, 8, 5, 0,
         0, 4, 5, 4, 0
     };
 
     niveles[4] = {
-        { true, true, true, false, true },
+        { true, true, true, true, true },
         10, 10, 10, 6, 6,
         5, 5, 6, 4, 4
     };
